@@ -78,6 +78,12 @@ async function handleEvent(event) {
     }
   }
 
+  // 「応答生成中...」をすぐに返す
+  await client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [{ type: "text", text: "応答生成中..." }],
+  });
+
   // 会話履歴を取得・更新
   if (!conversationHistory.has(groupId)) {
     conversationHistory.set(groupId, []);
@@ -101,9 +107,9 @@ async function handleEvent(event) {
   history.push({ role: "Bot", content: reply });
   if (history.length > MAX_HISTORY) history.shift();
 
-  // LINE に返信
-  await client.replyMessage({
-    replyToken: event.replyToken,
+  // 本回答を push message でグループに送信
+  await client.pushMessage({
+    to: groupId,
     messages: [{ type: "text", text: reply }],
   });
 
