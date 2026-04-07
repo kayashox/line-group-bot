@@ -74,21 +74,29 @@ async function handleEvent(event) {
     messages: [{ type: "text", text: "応答生成中..." }],
   });
 
+  // グループ名とユーザー名を取得
+  const [groupSummary, memberProfile] = await Promise.all([
+    client.getGroupSummary(groupId).catch(() => null),
+    client.getGroupMemberProfile(groupId, userId).catch(() => null),
+  ]);
+  const groupName = groupSummary?.groupName || groupId;
+  const displayName = memberProfile?.displayName || userId;
+
   // 受講生のメッセージをスプシに記録
-  await appendHistory(groupId, userId, "受講生", text);
+  await appendHistory(groupId, groupName, userId, displayName, text);
 
   // スプシから3つのデータを並列取得
   const [systemPrompt, knowledge, history] = await Promise.all([
     fetchSystemPrompt(),
     fetchKnowledge(),
-    fetchHistory(groupId, 10),
+    fetchHistory(groupId, groupName, 10),
   ]);
 
   // Claude API で回答生成
   const reply = await generateReply(text, systemPrompt, knowledge, history);
 
   // Bot の回答をスプシに記録
-  await appendHistory(groupId, "Bot", "Bot", reply);
+  await appendHistory(groupId, groupName, "Bot", "Bot", reply);
 
   // 本回答を push message でグループに送信
   await client.pushMessage({
