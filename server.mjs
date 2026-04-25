@@ -74,37 +74,48 @@ async function handleEvent(event) {
     messages: [{ type: "text", text: "応答生成中..." }],
   });
 
-  // グループ名とユーザー名を取得
-  const [groupSummary, memberProfile] = await Promise.all([
-    client.getGroupSummary(groupId).catch(() => null),
-    client.getGroupMemberProfile(groupId, userId).catch(() => null),
-  ]);
-  const groupName = groupSummary?.groupName || groupId;
-  const displayName = memberProfile?.displayName || userId;
+  try {
+    // グループ名とユーザー名を取得
+    const [groupSummary, memberProfile] = await Promise.all([
+      client.getGroupSummary(groupId).catch(() => null),
+      client.getGroupMemberProfile(groupId, userId).catch(() => null),
+    ]);
+    const groupName = groupSummary?.groupName || groupId;
+    const displayName = memberProfile?.displayName || userId;
 
-  // 受講生のメッセージをスプシに記録
-  await appendHistory(groupId, groupName, userId, displayName, text);
+    // 受講生のメッセージをスプシに記録
+    await appendHistory(groupId, groupName, userId, displayName, text);
 
-  // スプシから3つのデータを並列取得
-  const [systemPrompt, knowledge, history] = await Promise.all([
-    fetchSystemPrompt(),
-    fetchKnowledge(),
-    fetchHistory(groupId, groupName, 10),
-  ]);
+    // スプシから3つのデータを並列取得
+    const [systemPrompt, knowledge, history] = await Promise.all([
+      fetchSystemPrompt(),
+      fetchKnowledge(),
+      fetchHistory(groupId, groupName, 10),
+    ]);
 
-  // Claude API で回答生成
-  const reply = await generateReply(text, systemPrompt, knowledge, history);
+    // Claude API で回答生成
+    const reply = await generateReply(text, systemPrompt, knowledge, history);
 
-  // Bot の回答をスプシに記録
-  await appendHistory(groupId, groupName, "Bot", "Bot", reply);
+    // Bot の回答をスプシに記録
+    await appendHistory(groupId, groupName, "Bot", "Bot", reply);
 
-  // 本回答を push message でグループに送信
-  await client.pushMessage({
-    to: groupId,
-    messages: [{ type: "text", text: reply }],
-  });
+    // 本回答を push message でグループに送信
+    await client.pushMessage({
+      to: groupId,
+      messages: [{ type: "text", text: reply }],
+    });
 
-  console.log(`[reply] ${reply.slice(0, 80)}...`);
+    console.log(`[reply] ${reply.slice(0, 80)}...`);
+  } catch (err) {
+    console.error("[reply error]", err?.message || err);
+    await client.pushMessage({
+      to: groupId,
+      messages: [{
+        type: "text",
+        text: "ごめん、今ちょっと処理が混み合ってるみたい。30秒ほど空けてもう一度送ってみて！",
+      }],
+    }).catch(() => {});
+  }
 }
 
 const PORT = process.env.PORT || 3000;
